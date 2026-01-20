@@ -1,0 +1,7 @@
+{
+  "name": "Copy of AdGen AI: Intelligent Creative Engine",
+  "description": "Transform a single product asset into a full set of channel-optimized advertising creatives for Instagram, TikTok, Google Ads, and more using Gemini 2.5 Flash Vision.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
