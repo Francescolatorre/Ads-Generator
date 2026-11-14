@@ -1,5 +1,6 @@
 
 import React, { useState, useCallback } from 'react';
+import { LayerAssetPanel } from './components/LayerAssetPanel';
 import { Layout } from './components/Layout';
 import { CHANNELS, DEFAULT_BRIEFING } from './constants';
 import { AdChannel, AdVariant, Briefing, Placement } from './types';
@@ -279,6 +280,7 @@ export default function App() {
           </div>
         </div>
       </div>
+      {import.meta.env.DEV && <LayerAssetPanel source={baseImage} />}
     </Layout>
   );
 }

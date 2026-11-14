@@ -1,0 +1,43 @@
+import { afterEach, expect, it } from "vitest";
+import { createServer, type Server } from "node:http";
+import { promises as fs } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import sharp from "sharp";
+import { layerAssetsMiddleware } from "./layerAssets";
+
+let server: Server; let root: string;
+afterEach(async () => {
+  if (server) await new Promise<void>((resolve, reject) => server.close(e => e ? reject(e) : resolve()));
+  if (root) await fs.rm(root, { recursive: true, force: true });
+});
+it("round-trips upload, reopen, layer edit, preview and export through the app API", async () => {
+  root = await fs.mkdtemp(join(tmpdir(), "layerasset-api-"));
+  const middleware = layerAssetsMiddleware(root);
+  server = createServer((req, res) => { void middleware(req, res, () => { res.statusCode = 404; res.end(); }); });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address() as { port: number };
+  const base = `http://127.0.0.1:${address.port}/api/layer-assets`;
+  const headers = { "X-Layer-Asset": "1" };
+  expect((await fetch(base)).status).toBe(403);
+  expect((await fetch(base, { headers: { ...headers, Origin: "https://evil.example" } })).status).toBe(403);
+  const image = await sharp({ create: { width: 4, height: 4, channels: 4, background: "red" } }).png().toBuffer();
+  const created = await fetch(base, { method: "POST", headers, body: image });
+  expect(created.status).toBe(201);
+  const initial = await created.json(); const url = `${base}/${initial.manifest.asset_id}`;
+  expect((await (await fetch(base, { headers })).json())).toHaveLength(1);
+  expect(await (await fetch(url, { headers })).json()).toEqual(initial);
+  const added = await (await fetch(`${url}/layers?type=subject`, { method: "POST", headers, body: image })).json();
+  const edits = { revision: added.revision, layers: added.manifest.layers.map((l: { id: string }, i: number) => ({ id: l.id, opacity: i === 0 ? 0 : 0.5, z_index: i, transform: { x: 0, y: 0, scale: 1, rotation: 0 } })) };
+  const saved = await fetch(url, { method: "PUT", headers, body: JSON.stringify(edits) }); expect(saved.status).toBe(200);
+  expect((await fetch(url, { method: "PUT", headers, body: JSON.stringify(edits) })).status).toBe(409);
+  const preview = await fetch(`${url}/preview`, { headers }); expect(preview.status).toBe(200);
+  const data = await sharp(Buffer.from(await preview.arrayBuffer())).raw().toBuffer();
+  expect(Array.from(data.subarray(0, 4))).toEqual([255, 0, 0, 128]);
+  const exported = await fetch(`${url}/export?ratio=1:1`, { method: "POST", headers }); expect(exported.status).toBe(200);
+  expect(exported.headers.get("content-disposition")).toContain("attachment");
+  expect((await sharp(Buffer.from(await exported.arrayBuffer())).metadata()).width).toBe(4);
+  expect((await fetch(`${url}/export?ratio=1:1:2`, { method: "POST", headers })).status).toBe(400);
+  expect((await fetch(base, { method: "POST", headers, body: "garbage" })).status).toBe(400);
+  expect((await fs.readdir(root)).filter(name => name.startsWith(".pending"))).toEqual([]);
+});

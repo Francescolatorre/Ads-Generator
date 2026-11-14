@@ -1,22 +1,21 @@
 import { promises as fs } from "node:fs";
-import { basename, dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
+import sharp from "sharp";
 import { layerAssetManifestSchema, type LayerAssetManifest } from "./schema";
+import { bundleFile } from "./files";
 
-const manifestFileName = "manifest.json";
-const requiredDirs = ["layers", "masks", "previews", "exports"];
-
+export const imageOptions = { limitInputPixels: 8192 * 8192, failOn: "warning" as const };
 export interface InitBundleOptions {
   width: number;
   height: number;
   assetId?: string;
   source?: LayerAssetManifest["source"];
 }
-
 export interface AddLayerOptions {
   id?: string;
   type: LayerAssetManifest["layers"][number]["type"];
-  filePath: string;
+  filePath: string | Buffer;
   zIndex: number;
   blendMode?: LayerAssetManifest["layers"][number]["blend_mode"];
   opacity?: number;
@@ -24,120 +23,94 @@ export interface AddLayerOptions {
 }
 
 export async function initBundle(bundlePath: string, options: InitBundleOptions): Promise<LayerAssetManifest> {
-  const resolved = resolve(bundlePath);
-  await fs.mkdir(resolved, { recursive: true });
-  await Promise.all(
-    requiredDirs.map((dir) => fs.mkdir(join(resolved, dir), { recursive: true })),
-  );
-
-  const manifest: LayerAssetManifest = {
-    schema_version: "1.0",
-    asset_id: options.assetId ?? randomUUID(),
+  const manifest = layerAssetManifestSchema.parse({
+    schema_version: "1.0", asset_id: options.assetId ?? randomUUID(),
     source: options.source ?? {},
-    canvas: {
-      width: options.width,
-      height: options.height,
-      color_space: "sRGB",
-    },
-    layers: [],
-    masks: {},
-    provenance: {
-      created_at: new Date().toISOString(),
-      pipeline_stage: "init",
-    },
-  };
-
-  await writeManifest(resolved, manifest);
+    canvas: { width: options.width, height: options.height, color_space: "sRGB" },
+    layers: [], masks: {},
+    provenance: { created_at: new Date().toISOString(), pipeline_stage: "init" },
+  });
+  await fs.mkdir(resolve(bundlePath), { recursive: true });
+  // Exclusive creation: never reset an existing asset.
+  await fs.writeFile(await bundleFile(bundlePath, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n", { flag: "wx" });
+  for (const dir of ["layers", "masks", "previews", "exports", "source"]) {
+    await fs.mkdir(await bundleFile(bundlePath, dir), { recursive: true });
+  }
   return manifest;
 }
 
 export async function readManifest(bundlePath: string): Promise<LayerAssetManifest> {
-  const manifestPath = join(bundlePath, manifestFileName);
-  const raw = await fs.readFile(manifestPath, "utf-8");
-  const parsed = JSON.parse(raw);
-  return layerAssetManifestSchema.parse(parsed);
+  return layerAssetManifestSchema.parse(JSON.parse(await fs.readFile(await bundleFile(bundlePath, "manifest.json"), "utf-8")));
 }
 
 export async function writeManifest(bundlePath: string, manifest: LayerAssetManifest): Promise<void> {
-  const manifestPath = join(bundlePath, manifestFileName);
-  const json = JSON.stringify(manifest, null, 2);
-  await fs.writeFile(manifestPath, `${json}\n`);
+  const parsed = layerAssetManifestSchema.parse(manifest);
+  const target = await bundleFile(bundlePath, "manifest.json");
+  const temp = await bundleFile(bundlePath, `manifest-${randomUUID()}.tmp`);
+  try {
+    await fs.writeFile(temp, JSON.stringify(parsed, null, 2) + "\n", { flag: "wx" });
+    await fs.rename(temp, target);
+  } finally {
+    await fs.rm(temp, { force: true });
+  }
+}
+
+// Mutations fail clearly rather than losing concurrent edits (also across CLI processes).
+export async function mutateBundle<T>(bundlePath: string, operation: () => Promise<T>): Promise<T> {
+  const lockPath = await bundleFile(bundlePath, ".write-lock");
+  const lock = await fs.open(lockPath, "wx");
+  try { return await operation(); }
+  finally { await lock.close(); await fs.unlink(lockPath); }
+}
+
+export async function normalizeImage(input: string | Buffer): Promise<Buffer> {
+  const meta = await sharp(input, imageOptions).metadata();
+  if ((meta.pages ?? 1) !== 1 || !["png", "jpeg", "webp", "tiff"].includes(meta.format ?? "")) {
+    throw new Error("Expected a single-frame PNG, JPEG, WebP or TIFF image");
+  }
+  return sharp(input, imageOptions).rotate().toColourspace("srgb").ensureAlpha().png().toBuffer();
 }
 
 export async function addLayer(bundlePath: string, options: AddLayerOptions): Promise<LayerAssetManifest> {
-  const manifest = await readManifest(bundlePath);
-  const layerId = options.id ?? randomUUID();
-  const layersDir = join(bundlePath, "layers");
-  const sourcePath = resolve(options.filePath);
-  const fileName = await resolveUniqueFileName(layersDir, basename(sourcePath));
-  const destPath = join(layersDir, fileName);
-
-  await fs.copyFile(sourcePath, destPath);
-
-  manifest.layers.push({
-    id: layerId,
-    type: options.type,
-    file: join("layers", fileName),
-    z_index: options.zIndex,
-    editable: options.editable ?? true,
-    blend_mode: options.blendMode,
-    opacity: options.opacity,
+  return mutateBundle(bundlePath, async () => {
+    const manifest = await readManifest(bundlePath);
+    const file = `layers/${randomUUID()}.png`;
+    manifest.layers.push({
+      id: options.id ?? randomUUID(), type: options.type, file,
+      z_index: options.zIndex, editable: options.editable ?? true,
+      blend_mode: options.blendMode, opacity: options.opacity,
+    });
+    layerAssetManifestSchema.parse(manifest);
+    const png = await normalizeImage(options.filePath);
+    const target = await bundleFile(bundlePath, file);
+    await fs.writeFile(target, png, { flag: "wx" });
+    try { await writeManifest(bundlePath, manifest); }
+    catch (error) { await fs.unlink(target); throw error; }
+    return manifest;
   });
-
-  manifest.provenance = {
-    ...(manifest.provenance ?? {}),
-    pipeline_stage: "add-layer",
-  };
-
-  await writeManifest(bundlePath, manifest);
-  return manifest;
 }
 
 export async function validateBundle(bundlePath: string): Promise<string[]> {
   const errors: string[] = [];
-  let manifest: LayerAssetManifest | null = null;
-  try {
-    manifest = await readManifest(bundlePath);
-  } catch (error) {
-    errors.push(`Manifest validation failed: ${error instanceof Error ? error.message : String(error)}`);
-    return errors;
-  }
-
-  const layerFiles = manifest.layers.map((layer) => layer.file);
-  const maskFiles = manifest.masks ? Object.values(manifest.masks).filter(Boolean) : [];
-  const allFiles = [...layerFiles, ...maskFiles];
-
-  for (const relative of allFiles) {
-    const filePath = resolve(bundlePath, relative);
+  let manifest: LayerAssetManifest;
+  try { manifest = await readManifest(bundlePath); }
+  catch (error) { return [`Manifest validation failed: ${String(error)}`]; }
+  const files = [
+    ...manifest.layers.map(layer => ({ file: layer.file, rgba: true })),
+    ...Object.values(manifest.masks ?? {}).map(file => ({ file, rgba: false })),
+    ...(manifest.source.input_image ? [{ file: manifest.source.input_image, rgba: false }] : []),
+  ];
+  for (const { file, rgba } of files) {
     try {
-      await fs.access(filePath);
-    } catch (error) {
-      errors.push(`Missing file referenced in manifest: ${relative}`);
-    }
+      const path = await bundleFile(bundlePath, file);
+      const metadata = await sharp(path, imageOptions).metadata();
+      if (metadata.format !== "png" || (metadata.pages ?? 1) !== 1) throw new Error("Expected single-frame PNG");
+      if (rgba && (metadata.channels !== 4 || !metadata.hasAlpha || metadata.space !== "srgb")) throw new Error("Expected sRGB RGBA PNG");
+      // Decode too: metadata alone does not detect truncated pixel streams.
+      await sharp(path, imageOptions).raw().toBuffer();
+    } catch (error) { errors.push(`${file}: ${String(error)}`); }
   }
-
   return errors;
 }
 
-async function resolveUniqueFileName(dir: string, fileName: string): Promise<string> {
-  const parsedName = basename(fileName);
-  const extIndex = parsedName.lastIndexOf(".");
-  const base = extIndex >= 0 ? parsedName.slice(0, extIndex) : parsedName;
-  const ext = extIndex >= 0 ? parsedName.slice(extIndex) : "";
-  let candidate = parsedName;
-  let counter = 1;
-
-  while (true) {
-    try {
-      await fs.access(join(dir, candidate));
-      candidate = `${base}-${counter}${ext}`;
-      counter += 1;
-    } catch {
-      return candidate;
-    }
-  }
-}
-
-export function resolveBundlePath(path: string): string {
-  return resolve(path);
-}
+export function resolveBundlePath(path: string): string { return resolve(path); }

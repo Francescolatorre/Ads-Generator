@@ -21,7 +21,6 @@ program
       height: options.height,
       assetId: options.assetId,
     });
-    await writeManifest(bundlePath, manifest);
     console.log(`Initialized bundle at ${bundlePath}`);
   });
 
@@ -88,4 +87,7 @@ program
     outputs.forEach((file) => console.log(file));
   });
 
-program.parseAsync(process.argv);
+program.parseAsync(process.argv).catch(error => {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exitCode = 1;
+});
