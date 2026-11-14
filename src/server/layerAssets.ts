@@ -11,6 +11,9 @@ import { bundleFile } from "../lib/layerAsset/files";
 import { renderCompositeBuffer } from "../lib/layerAsset/render";
 import { exportBundle } from "../lib/layerAsset/export";
 
+import { DecompositionJobs } from "./decomposition/jobs";
+import type { Config } from "./decomposition/providers";
+
 const revision = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 const editsSchema = z.object({
   revision: z.string(),
@@ -31,7 +34,7 @@ async function body(req: IncomingMessage): Promise<Buffer> {
 }
 
 // A local development adapter, deliberately not a public production API.
-export function layerAssetsMiddleware(root: string) {
+export function layerAssetsMiddleware(root: string, jobs = new DecompositionJobs(root, { enabled: false })) {
   return async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
     if (!req.url?.startsWith("/api/layer-assets")) return next();
     const json = (status: number, data: unknown) => {
@@ -51,6 +54,7 @@ export function layerAssetsMiddleware(root: string) {
       if (parts.length < 2 || parts.length > 4 || parts[1] !== "layer-assets") return json(404, { error: "Not found" });
       const id = parts[2];
       const action = parts[3];
+      if (id === "capabilities" && req.method === "GET") return json(200, jobs.capabilities());
       if (!id && req.method === "GET") {
         const assets = [];
         for (const entry of await fs.readdir(root, { withFileTypes: true })) {
@@ -77,6 +81,8 @@ export function layerAssetsMiddleware(root: string) {
       identifierSchema.parse(id);
       const path = await bundleFile(root, id);
       const manifest = await readManifest(path);
+      if (action === "decomposition" && req.method === "POST") return json(202, await jobs.start(path, JSON.parse((await body(req)).toString("utf8"))));
+      if (action === "decomposition" && req.method === "GET") return json(200, await jobs.refresh(path));
       if (!action && req.method === "GET") return json(200, { manifest, revision: revision(manifest) });
       if (action === "preview" && req.method === "GET") {
         const png = await renderCompositeBuffer(path, manifest);
@@ -115,8 +121,8 @@ export function layerAssetsMiddleware(root: string) {
     }
   };
 }
-export function layerAssetsPlugin(root: string): Plugin {
+export function layerAssetsPlugin(root: string, config: Config = { enabled: false }): Plugin {
   return { name: "local-layer-assets", apply: "serve", configureServer(server) {
-    server.middlewares.use(layerAssetsMiddleware(root));
+    server.middlewares.use(layerAssetsMiddleware(root, new DecompositionJobs(root, config)));
   } };
 }
