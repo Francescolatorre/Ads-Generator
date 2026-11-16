@@ -25,7 +25,11 @@ export function LayerAssetPanel({ source }: { source: string | null }) {
   const refresh = async () => setAssets(await (await api("")).json());
   useEffect(() => {
     refresh().catch(e => setError(e.message));
-    api("/capabilities").then(r => r.json()).then(setCapabilities).catch(e => setError(e.message));
+    api("/capabilities").then(r => r.json()).then(value => {
+      setCapabilities(value);
+      setProvider(value.recommended === "runware" ? "runware" : "replicate");
+      setPaidConsent(false);
+    }).catch(e => setError(e.message));
   }, []);
   useEffect(() => {
     if (!snapshot || !job || !["processing", "submitting"].includes(job.status)) return;
@@ -90,7 +94,7 @@ export function LayerAssetPanel({ source }: { source: string | null }) {
         <p className="text-xs text-white/60">{snapshot.manifest.asset_id} · {snapshot.manifest.canvas.width} × {snapshot.manifest.canvas.height}</p>
         <div className="border border-white/10 rounded p-3 space-y-3">
           <h3 className="font-semibold">Automatic decomposition (evaluation)</h3>
-          <p className="text-sm text-white/60">Sends the saved original image to the selected provider and creates a new asset. Replicate is the technical default; visual quality has not yet been evaluated.</p>
+          <p className="text-sm text-white/60">Sends the saved original image to the selected provider and creates a new asset. Review the resulting layers: decomposition can change text, colors and product details.</p>
           <div className="flex flex-wrap gap-3">
             <label>Provider <select className={control} value={provider} onChange={e => { setProvider(e.target.value); setPaidConsent(false); }}>
               <option value="replicate">Replicate</option><option value="runware">Runware</option>

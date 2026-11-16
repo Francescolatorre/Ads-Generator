@@ -16,7 +16,7 @@ export interface Job {
 }
 export class DecompositionJobs {
   constructor(readonly root: string, readonly config: Config, readonly transport: Transport = fetch) {}
-  capabilities() { return { enabled: this.config.enabled, providers: { replicate: !!this.config.replicate, runware: !!this.config.runware }, recommended: "replicate", qualityEvaluated: false }; }
+  capabilities() { return { enabled: this.config.enabled, providers: { replicate: !!this.config.replicate, runware: !!this.config.runware }, recommended: this.config.runware ? "runware" : "replicate", qualityEvaluated: false }; }
   private async path(id: string) { z.string().uuid().parse(id); return bundleFile(this.root, `.jobs/${id}.json`); }
   private async store(job: Job) {
     const target = await this.path(job.id); const temp = `${target}.${randomUUID()}.tmp`;
