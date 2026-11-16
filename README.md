@@ -95,3 +95,7 @@ for each prediction. Do not enable them before agreeing a budget.
 Live quality/cost comparison has not yet been run. The original asset is preserved;
 successful decomposition creates a new editable bundle with provenance and an
 evaluation report.
+
+## Process Flow marketing workflow
+
+Create editorial marketing layouts from saved assets through your Process Flow instance, without paid generation. See [setup, workflow and limitations](docs/process-flow-marketing.md).

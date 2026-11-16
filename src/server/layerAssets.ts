@@ -1,3 +1,4 @@
+import { publishAsset } from "./marketing/publish";
 import { promises as fs } from "node:fs";
 import { join, basename } from "node:path";
 import { randomUUID, createHash } from "node:crypto";
@@ -13,6 +14,8 @@ import { exportBundle } from "../lib/layerAsset/export";
 
 import { DecompositionJobs } from "./decomposition/jobs";
 import type { Config } from "./decomposition/providers";
+import { MarketingWorkflow } from "./marketing/marketing";
+import type { ProcessFlowConfig } from "./marketing/processFlow";
 
 const revision = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 const editsSchema = z.object({
@@ -34,7 +37,7 @@ async function body(req: IncomingMessage): Promise<Buffer> {
 }
 
 // A local development adapter, deliberately not a public production API.
-export function layerAssetsMiddleware(root: string, jobs = new DecompositionJobs(root, { enabled: false })) {
+export function layerAssetsMiddleware(root: string, jobs = new DecompositionJobs(root, { enabled: false }), marketing = new MarketingWorkflow(root, {})) {
   return async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
     if (!req.url?.startsWith("/api/layer-assets")) return next();
     const json = (status: number, data: unknown) => {
@@ -54,7 +57,7 @@ export function layerAssetsMiddleware(root: string, jobs = new DecompositionJobs
       if (parts.length < 2 || parts.length > 4 || parts[1] !== "layer-assets") return json(404, { error: "Not found" });
       const id = parts[2];
       const action = parts[3];
-      if (id === "capabilities" && req.method === "GET") return json(200, jobs.capabilities());
+      if (id === "capabilities" && req.method === "GET") return json(200, { ...jobs.capabilities(), processFlow: !!marketing.config.baseUrl });
       if (!id && req.method === "GET") {
         const assets = [];
         for (const entry of await fs.readdir(root, { withFileTypes: true })) {
@@ -81,6 +84,16 @@ export function layerAssetsMiddleware(root: string, jobs = new DecompositionJobs
       identifierSchema.parse(id);
       const path = await bundleFile(root, id);
       const manifest = await readManifest(path);
+      if (action === "publish" && req.method === "POST") {
+        const input = z.object({ revision: z.string() }).strict().parse(JSON.parse((await body(req)).toString("utf8")));
+        return json(201, await publishAsset(path, input.revision, { ...marketing.config, baseUrl: marketing.config.assetBaseUrl ?? marketing.config.baseUrl, token: marketing.config.assetBaseUrl ? marketing.config.assetToken : marketing.config.token }));
+      }
+      if (action === "marketing" && req.method === "GET" && manifest.provenance?.pipeline_stage === "marketing-layout") return json(200, JSON.parse(await fs.readFile(await bundleFile(path, "marketing.json"), "utf8")));
+      if (action === "marketing" && req.method === "POST") {
+        const input = JSON.parse((await body(req)).toString("utf8"));
+        if (input.assetId !== id) throw new Error("Asset ID mismatch");
+        return json(201, await marketing.run(input));
+      }
       if (action === "decomposition" && req.method === "POST") return json(202, await jobs.start(path, JSON.parse((await body(req)).toString("utf8"))));
       if (action === "decomposition" && req.method === "GET") return json(200, await jobs.refresh(path));
       if (!action && req.method === "GET") return json(200, { manifest, revision: revision(manifest) });
@@ -121,8 +134,8 @@ export function layerAssetsMiddleware(root: string, jobs = new DecompositionJobs
     }
   };
 }
-export function layerAssetsPlugin(root: string, config: Config = { enabled: false }): Plugin {
+export function layerAssetsPlugin(root: string, config: Config = { enabled: false }, processFlow: ProcessFlowConfig = {}): Plugin {
   return { name: "local-layer-assets", apply: "serve", configureServer(server) {
-    server.middlewares.use(layerAssetsMiddleware(root, new DecompositionJobs(root, config)));
+    server.middlewares.use(layerAssetsMiddleware(root, new DecompositionJobs(root, config), new MarketingWorkflow(root, processFlow)));
   } };
 }

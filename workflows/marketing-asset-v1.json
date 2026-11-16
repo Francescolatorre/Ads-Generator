@@ -1,0 +1,94 @@
+{
+  "id": "ads-marketing-asset-v1",
+  "name": "Marketing Asset · Editorial v1 (kostenfrei)",
+  "description": "Briefing prüfen, Layoutauftrag erzeugen. Ads-Generator rendert die Ebenen lokal. Keine KI- oder HTTP-Nodes.",
+  "nodes": [
+    {
+      "id": "brief",
+      "type": "start",
+      "position": {
+        "x": 80,
+        "y": 160
+      },
+      "label": "Marketing-Briefing",
+      "config": {
+        "variables": [
+          {
+            "id": "assetId",
+            "name": "assetId",
+            "type": "string",
+            "required": true
+          },
+          {
+            "id": "brand",
+            "name": "brand",
+            "type": "string",
+            "required": true
+          },
+          {
+            "id": "headline",
+            "name": "headline",
+            "type": "string",
+            "required": true
+          },
+          {
+            "id": "cta",
+            "name": "cta",
+            "type": "string",
+            "required": true
+          },
+          {
+            "id": "ratio",
+            "name": "ratio",
+            "type": "string",
+            "required": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "layout",
+      "type": "transform",
+      "position": {
+        "x": 400,
+        "y": 160
+      },
+      "label": "Editorial-Layout planen (ohne KI)",
+      "config": {
+        "transformType": "javascript",
+        "expression": "({version: 1, template: \"editorial-v1\", assetId: input.assetId, brand: input.brand, headline: input.headline, cta: input.cta, ratio: input.ratio, paidGeneration: false})"
+      }
+    },
+    {
+      "id": "result",
+      "type": "output",
+      "position": {
+        "x": 720,
+        "y": 160
+      },
+      "label": "Layoutauftrag an Ads-Generator",
+      "config": {
+        "format": "json"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "brief-layout",
+      "source": "brief",
+      "sourceHandle": "output",
+      "target": "layout",
+      "targetHandle": "input"
+    },
+    {
+      "id": "layout-result",
+      "source": "layout",
+      "sourceHandle": "output",
+      "target": "result",
+      "targetHandle": "input"
+    }
+  ],
+  "status": "draft",
+  "createdAt": "2026-11-16T00:00:00.000Z",
+  "updatedAt": "2026-11-16T00:00:00.000Z"
+}
