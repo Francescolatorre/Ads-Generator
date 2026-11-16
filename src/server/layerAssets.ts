@@ -1,3 +1,4 @@
+import { publishAsset } from "./marketing/publish";
 import { promises as fs } from "node:fs";
 import { join, basename } from "node:path";
 import { randomUUID, createHash } from "node:crypto";
@@ -83,6 +84,10 @@ export function layerAssetsMiddleware(root: string, jobs = new DecompositionJobs
       identifierSchema.parse(id);
       const path = await bundleFile(root, id);
       const manifest = await readManifest(path);
+      if (action === "publish" && req.method === "POST") {
+        const input = z.object({ revision: z.string() }).strict().parse(JSON.parse((await body(req)).toString("utf8")));
+        return json(201, await publishAsset(path, input.revision, { ...marketing.config, baseUrl: marketing.config.assetBaseUrl ?? marketing.config.baseUrl, token: marketing.config.assetBaseUrl ? marketing.config.assetToken : marketing.config.token }));
+      }
       if (action === "marketing" && req.method === "GET" && manifest.provenance?.pipeline_stage === "marketing-layout") return json(200, JSON.parse(await fs.readFile(await bundleFile(path, "marketing.json"), "utf8")));
       if (action === "marketing" && req.method === "POST") {
         const input = JSON.parse((await body(req)).toString("utf8"));

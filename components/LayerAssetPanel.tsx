@@ -10,6 +10,7 @@ async function api(path: string, options: RequestInit = {}) {
 }
 export function LayerAssetPanel({ source }: { source: string | null }) {
   const [capabilities, setCapabilities] = useState<{ enabled: boolean; providers: Record<string, boolean>; processFlow?: boolean } | null>(null);
+  const [centralUrl, setCentralUrl] = useState<string | null>(null);
   const [brand, setBrand] = useState("YOUR BRAND");
   const [headline, setHeadline] = useState("Made for your everyday.");
   const [cta, setCta] = useState("Discover more");
@@ -55,6 +56,7 @@ export function LayerAssetPanel({ source }: { source: string | null }) {
     finally { setBusy(false); }
   }
   async function accept(next: Snapshot) {
+    setCentralUrl(null);
     setSnapshot(next); setDirty(false); setPreview(null); setJob(null); setPaidConsent(false);
     const blob = await (await api(`/${next.manifest.asset_id}/preview`)).blob();
     setPreview(URL.createObjectURL(blob));
@@ -141,6 +143,15 @@ export function LayerAssetPanel({ source }: { source: string | null }) {
           <button className={`${control} ml-3`} onClick={() => run(async () => setJob(await (await api(`/${snapshot.manifest.asset_id}/decomposition`)).json()))}>Check decomposition status</button>
           {job && <p role="status">Decomposition: {job.status}. {job.error}</p>}
           {job?.outputAsset && <button className={control} disabled={dirty} onClick={() => run(async () => accept(await (await api(`/${job.outputAsset}`)).json()))}>Open decomposed asset</button>}
+        </div>
+        <div className="border border-white/10 rounded p-3 space-y-2">
+          <h3 className="font-semibold">Central asset library</h3>
+          <p className="text-sm text-white/60">Upload this saved version, including images, layers and exports, to Process Flow for comparison and approval. This does not generate images or publish an ad.</p>
+          <button className={control} disabled={dirty || !capabilities?.processFlow} onClick={() => run(async () => {
+            const result = await (await api(`/${snapshot.manifest.asset_id}/publish`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ revision: snapshot.revision }) })).json();
+            setCentralUrl(result.viewerUrl);
+          })}>Upload to Process Flow</button>
+          {centralUrl && <p role="status">Stored centrally. <a className="underline" href={centralUrl} target="_blank" rel="noreferrer">Open comparison and approval</a></p>}
         </div>
         <label>Layer type <select className={control} value={layerType} onChange={e => setLayerType(e.target.value)}>
           {["background", "subject", "shadow", "overlay", "fx"].map(t => <option key={t}>{t}</option>)}
