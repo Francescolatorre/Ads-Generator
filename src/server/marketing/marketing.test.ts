@@ -41,6 +41,7 @@ describe("reviewed Process Flow boundary", () => {
   });
 });
 describe("marketing assets", () => {
+  // Native font initialization and repeated full-size composites can exceed 5s on Windows CI.
   it.each(["1:1", "4:5", "9:16"] as const)("renders %s with separate layers, original intact and repeat-safe request", async ratio => {
     const { root, source, m, request } = await setup(); const fetch = transport();
     const jobs = new MarketingWorkflow(root, config, fetch);
@@ -54,7 +55,7 @@ describe("marketing assets", () => {
     const edited = structuredClone(result.manifest); edited.layers[2].opacity = 0;
     expect(a.equals(await renderCompositeBuffer(path, edited))).toBe(false);
     await expect(jobs.run({ ...input, cta: "Changed" })).rejects.toThrow("another brief");
-  });
+  }, 20_000);
   it("checks stale revisions before any remote work", async () => {
     const { root, request } = await setup(); const fetch = transport();
     await expect(new MarketingWorkflow(root, config, fetch).run({ ...request, revision: "stale" })).rejects.toThrow("changed"); expect(fetch).not.toHaveBeenCalled();
