@@ -10,7 +10,8 @@
     "test": "vitest",
     "typecheck": "tsc --noEmit",
     "test:run": "vitest run",
-    "evaluation:fixtures": "tsx tools/decomposition-fixtures.ts"
+    "evaluation:fixtures": "tsx tools/decomposition-fixtures.ts",
+    "process-flow:install": "tsx tools/install-marketing-workflow.ts"
   },
   "bin": {
     "layerasset": "bin/layerasset.js"

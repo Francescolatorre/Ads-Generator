@@ -9,7 +9,13 @@ async function api(path: string, options: RequestInit = {}) {
   return response;
 }
 export function LayerAssetPanel({ source }: { source: string | null }) {
-  const [capabilities, setCapabilities] = useState<{ enabled: boolean; providers: Record<string, boolean> } | null>(null);
+  const [capabilities, setCapabilities] = useState<{ enabled: boolean; providers: Record<string, boolean>; processFlow?: boolean } | null>(null);
+  const [brand, setBrand] = useState("YOUR BRAND");
+  const [headline, setHeadline] = useState("Made for your everyday.");
+  const [cta, setCta] = useState("Discover more");
+  const [marketingRatio, setMarketingRatio] = useState("4:5");
+  const [marketingRequestId, setMarketingRequestId] = useState<string | null>(null);
+  const [workflowExecution, setWorkflowExecution] = useState<string | null>(null);
   const [provider, setProvider] = useState("replicate");
   const [layerCount, setLayerCount] = useState(4);
   const [paidConsent, setPaidConsent] = useState(false);
@@ -31,6 +37,7 @@ export function LayerAssetPanel({ source }: { source: string | null }) {
       setPaidConsent(false);
     }).catch(e => setError(e.message));
   }, []);
+  useEffect(() => { setMarketingRequestId(null); }, [brand, headline, cta, marketingRatio, snapshot?.manifest.asset_id, snapshot?.revision]);
   useEffect(() => {
     if (!snapshot || !job || !["processing", "submitting"].includes(job.status)) return;
     // One status request at a time; stop automatic polling after ten minutes.
@@ -53,6 +60,11 @@ export function LayerAssetPanel({ source }: { source: string | null }) {
     setPreview(URL.createObjectURL(blob));
     await refresh();
     setJob(await (await api(`/${next.manifest.asset_id}/decomposition`)).json());
+    if (next.manifest.provenance?.pipeline_stage === "marketing-layout") {
+      const record = await (await api(`/${next.manifest.asset_id}/marketing`)).json();
+      setBrand(record.plan.brand); setHeadline(record.plan.headline); setCta(record.plan.cta); setMarketingRatio(record.plan.ratio);
+      setWorkflowExecution(record.executionId);
+    }
   }
   async function save() {
     if (!snapshot) return;
@@ -93,6 +105,24 @@ export function LayerAssetPanel({ source }: { source: string | null }) {
       {snapshot && <>
         <p className="text-xs text-white/60">{snapshot.manifest.asset_id} · {snapshot.manifest.canvas.width} × {snapshot.manifest.canvas.height}</p>
         <div className="border border-white/10 rounded p-3 space-y-3">
+          <h3 className="font-semibold">Marketing layout · Process Flow</h3>
+          <p className="text-sm text-white/60">Create a new layout from this saved composition. Process Flow receives your brief, not the image. No paid AI generation. Text can be revised here before creating another version.</p>
+          <div className="flex flex-wrap gap-3">
+            <label>Brand<input className={`${control} block`} maxLength={24} value={brand} onChange={e => setBrand(e.target.value)} /></label>
+            <label>Headline<input className={`${control} block`} maxLength={70} value={headline} onChange={e => setHeadline(e.target.value)} /></label>
+            <label>Call to action<input className={`${control} block`} maxLength={24} value={cta} onChange={e => setCta(e.target.value)} /></label>
+            <label>Layout format<select className={`${control} block`} value={marketingRatio} onChange={e => setMarketingRatio(e.target.value)}>{["1:1", "4:5", "9:16"].map(r => <option key={r}>{r}</option>)}</select></label>
+          </div>
+          {!capabilities?.processFlow && <p role="note">Process Flow is not connected on this local server.</p>}
+          {snapshot.manifest.provenance?.pipeline_stage === "marketing-layout" && snapshot.manifest.source.parent_asset_id && <button className={control} disabled={dirty} onClick={() => run(async () => accept(await (await api(`/${snapshot.manifest.source.parent_asset_id}`)).json()))}>Return to source · revise brief or format</button>}
+          <button className={control} disabled={dirty || snapshot.manifest.provenance?.pipeline_stage === "marketing-layout" || !capabilities?.processFlow || !brand.trim() || !headline.trim() || !cta.trim()} onClick={() => run(async () => {
+            const requestId = marketingRequestId ?? crypto.randomUUID(); setMarketingRequestId(requestId);
+            const output = await (await api(`/${snapshot.manifest.asset_id}/marketing`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ assetId: snapshot.manifest.asset_id, revision: snapshot.revision, requestId, brand, headline, cta, ratio: marketingRatio }) })).json();
+            setWorkflowExecution(output.executionId); await accept(output);
+          })}>Create marketing asset · no AI charge</button>
+          {workflowExecution && <p role="status" className="text-xs">Process Flow completed · {workflowExecution}</p>}
+        </div>
+        <div className="border border-white/10 rounded p-3 space-y-3">
           <h3 className="font-semibold">Automatic decomposition (evaluation)</h3>
           <p className="text-sm text-white/60">Sends the saved original image to the selected provider and creates a new asset. Review the resulting layers: decomposition can change text, colors and product details.</p>
           <div className="flex flex-wrap gap-3">
@@ -121,7 +151,7 @@ export function LayerAssetPanel({ source }: { source: string | null }) {
         }} /></label>
         <div className="space-y-3">
           {snapshot.manifest.layers.map((layer, index) => <fieldset disabled={!layer.editable} key={layer.id} className="border border-white/10 rounded p-3">
-            <legend className="text-sm">{index + 1}. {layer.type} {layer.editable ? "" : "(locked)"}</legend>
+            <legend className="text-sm">{index + 1}. {layer.id.match(/^(background|source-artwork|headline|call-to-action)$/) ? layer.id : layer.type} {layer.editable ? "" : "(locked)"}</legend>
             <div className="flex flex-wrap gap-3">
               {([
                 ["opacity", "Opacity", layer.opacity ?? 1, 0, 1, 0.05],
