@@ -1,5 +1,8 @@
 # Layer Asset foundation: architecture and decisions
 
+This document records the foundation baseline. The subsequent provider integration
+and current evaluation status are documented in [decomposition-evaluation.md](decomposition-evaluation.md).
+
 ## Repository audit (2026-11-14)
 
 Base commit: `1a7d23230421dae02ec083d4e2873a74d3ea8299`.

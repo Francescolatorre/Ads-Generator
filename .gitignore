@@ -25,3 +25,7 @@ dist-ssr
 
 # Local persisted Layer Asset bundles
 assets/
+
+.env
+.env.*
+!.env.example

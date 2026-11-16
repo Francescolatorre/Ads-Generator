@@ -20,11 +20,14 @@ it("round-trips upload, reopen, layer edit, preview and export through the app A
   const base = `http://127.0.0.1:${address.port}/api/layer-assets`;
   const headers = { "X-Layer-Asset": "1" };
   expect((await fetch(base)).status).toBe(403);
+  expect(await (await fetch(`${base}/capabilities`, { headers })).json()).toMatchObject({ enabled: false, providers: { replicate: false, runware: false } });
   expect((await fetch(base, { headers: { ...headers, Origin: "https://evil.example" } })).status).toBe(403);
   const image = await sharp({ create: { width: 4, height: 4, channels: 4, background: "red" } }).png().toBuffer();
   const created = await fetch(base, { method: "POST", headers, body: image });
   expect(created.status).toBe(201);
   const initial = await created.json(); const url = `${base}/${initial.manifest.asset_id}`;
+  expect((await fetch(`${url}/decomposition`, { method: "POST", headers, body: JSON.stringify({ paidConsent: false }) })).status).toBe(400);
+  expect(await (await fetch(`${url}/decomposition`, { headers })).json()).toBeNull();
   expect((await (await fetch(base, { headers })).json())).toHaveLength(1);
   expect(await (await fetch(url, { headers })).json()).toEqual(initial);
   const added = await (await fetch(`${url}/layers?type=subject`, { method: "POST", headers, body: image })).json();

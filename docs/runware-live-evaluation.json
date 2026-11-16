@@ -1,0 +1,108 @@
+{
+  "authorization": {
+    "provider": "runware",
+    "maximumPredictions": 3,
+    "budgetUSD": 1
+  },
+  "model": "alibaba:qwen-image@layered",
+  "modelVersion": "provider-managed",
+  "steps": 30,
+  "inputDimensions": [
+    512,
+    512
+  ],
+  "totalReportedCostUSD": 0.3558,
+  "paidSubmissions": 3,
+  "paidRetries": 0,
+  "results": [
+    {
+      "fixture": "evaluation-product",
+      "requestId": "775bfe36-e61d-4685-9564-619825417501",
+      "createdAt": "2026-11-16T07:54:27.646Z",
+      "outputAsset": "decomposed-775bfe36-e61d-4685-9564-619825417501",
+      "provider": "runware",
+      "options": {
+        "provider": "runware",
+        "layers": 4,
+        "seed": 42
+      },
+      "inputSHA256": "dac76eb8aeaba3ddd93db88b6669be6535b1f67569dbfba4f9ca7747bebdd13e",
+      "width": 1024,
+      "height": 1024,
+      "layerSHA256": [
+        "f29452dd8e7f7e2ce99e601c8e3399c61bcdecfe7c867ee7e07d8ca65eb93cb1",
+        "a9b2ef4ab35e0d199f88414d392d8e2f991bdc5b5e262c4454d1159a07c4bd72",
+        "ee3702c925bcd72e6ed7140506255d8fbfc9d3710500d84a7d0cc24d5a59a0bd",
+        "fb229ca4775a8d0c26242c0187f38d98220e6cc77376af9b2b5c5c99876a1ec6"
+      ],
+      "meanAbsoluteRGBError": 2.072185834248861,
+      "comparison": "source stretched to output size; both flattened on white; diagnostic only, not a quality pass",
+      "costUSD": 0.1178,
+      "elapsedMs": 122703,
+      "needsHumanReview": true
+    },
+    {
+      "fixture": "evaluation-shadows",
+      "requestId": "775bfe36-e61d-4685-9564-619825417502",
+      "createdAt": "2026-11-16T07:57:14.684Z",
+      "outputAsset": "decomposed-775bfe36-e61d-4685-9564-619825417502",
+      "provider": "runware",
+      "options": {
+        "provider": "runware",
+        "layers": 4,
+        "seed": 42
+      },
+      "inputSHA256": "44079785cbe72ebad5440bf967bcdc377efa36b84957f88e368731e9775a8eed",
+      "width": 1024,
+      "height": 1024,
+      "layerSHA256": [
+        "38765461b7da3d38ec85ec173a3ebab4737b0233c13b0f7335961d811c9486ff",
+        "8e69aa87d4d52035bf7d36d385083e824e6e63bd08153d5e936f8f16ceb0da08",
+        "447f6d95f6a351954493b4622aa682088139989c7f1105d37e5e8adf936c936b",
+        "a09c041f43e41635dff7bacc8e49ccc74a8e66e24cdbc59bd528cec43ac7ffa2"
+      ],
+      "meanAbsoluteRGBError": 1.8382835388183594,
+      "comparison": "source stretched to output size; both flattened on white; diagnostic only, not a quality pass",
+      "costUSD": 0.119,
+      "elapsedMs": 135577,
+      "needsHumanReview": true
+    },
+    {
+      "fixture": "evaluation-typography",
+      "requestId": "775bfe36-e61d-4685-9564-619825417503",
+      "createdAt": "2026-11-16T07:59:50.523Z",
+      "outputAsset": "decomposed-775bfe36-e61d-4685-9564-619825417503",
+      "provider": "runware",
+      "options": {
+        "provider": "runware",
+        "layers": 4,
+        "seed": 42
+      },
+      "inputSHA256": "8d15e02bd8e7bc3a9858c9781a2edfe6ce5912ecb16cd56a5c3243b37d522f66",
+      "width": 1024,
+      "height": 1024,
+      "layerSHA256": [
+        "71649309794d761ec72fa09aa9f257f9babefb0a5549d8258eafb8103c2dde79",
+        "6f066b172abdc0d8f960da38c1e2dedfe8d0d8219cd004c93b24810ea4436db4",
+        "2329ae02b1f2495582896fe37f1b9994cedd39498cd28294af6554253b259e16",
+        "e046cdf93559886536575f67ea674bf4f164f43503ecc757d1d992bc11aaccad"
+      ],
+      "meanAbsoluteRGBError": 2.5898027420043945,
+      "comparison": "source stretched to output size; both flattened on white; diagnostic only, not a quality pass",
+      "costUSD": 0.119,
+      "elapsedMs": 134887,
+      "needsHumanReview": true
+    }
+  ],
+  "checks": {
+    "rgbaLayersPerAsset": 4,
+    "deterministicRecomposition": true,
+    "movingTopLayerChangesOutput": true,
+    "originalManifestsPreserved": true,
+    "exportRatios": [
+      "1:1",
+      "4:5",
+      "9:16"
+    ]
+  }
+}

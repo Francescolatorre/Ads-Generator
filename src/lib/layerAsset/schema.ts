@@ -30,6 +30,12 @@ const sourceSchema = z.object({
   input_image: bundleFileSchema.optional(),
   decomposition_model: z.string().optional(),
   model_version: z.string().optional(),
+  provider: z.enum(["replicate", "runware"]).optional(),
+  request_id: z.string().uuid().optional(),
+  provider_job_id: z.string().optional(),
+  parent_asset_id: identifierSchema.optional(),
+  input_sha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  seed: z.number().int().nonnegative().optional(),
 });
 
 const canvasSchema = z.object({
