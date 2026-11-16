@@ -6,7 +6,7 @@ const copy = (max: number) => z.string().trim().min(1).max(max).refine(s => !/[\
 export const briefSchema = z.object({ assetId: identifierSchema, brand: copy(24), headline: copy(70), cta: copy(24), ratio: z.enum(["1:1", "4:5", "9:16"]) }).strict();
 export const planSchema = briefSchema.extend({ version: z.literal(1), template: z.literal("editorial-v1"), paidGeneration: z.literal(false) }).strict();
 export type Plan = z.infer<typeof planSchema>;
-export type ProcessFlowConfig = { baseUrl?: string; token?: string };
+export type ProcessFlowConfig = { baseUrl?: string; token?: string; assetBaseUrl?: string; assetToken?: string };
 export { workflow };
 
 // This reviewed workflow has no external calls. Do not execute arbitrary user-supplied flows.
